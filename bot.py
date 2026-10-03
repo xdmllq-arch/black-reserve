@@ -3,12 +3,11 @@ import asyncio
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
-from aiogram.types import (
-    Message,
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-)
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
+
+from db import init_db, add_user, get_balance, get_users_count
+
 
 load_dotenv()
 
@@ -18,8 +17,10 @@ ADMIN_ID = 8336765971
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set")
 
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
 
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -37,6 +38,7 @@ main_menu = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True,
 )
+
 
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -58,6 +60,12 @@ admin_menu = ReplyKeyboardMarkup(
 
 @dp.message(CommandStart())
 async def start(message: Message):
+
+    add_user(
+        message.from_user.id,
+        message.from_user.username
+    )
+
     await message.answer(
         "🖤 BLACK RESERVE\n\n"
         "Добро пожаловать.\n"
@@ -69,9 +77,17 @@ async def start(message: Message):
 @dp.message()
 async def messages(message: Message):
 
+    user_id = message.from_user.id
+
+    add_user(
+        user_id,
+        message.from_user.username
+    )
+
     # АДМИНКА
     if message.text == "/admin":
-        if message.from_user.id != ADMIN_ID:
+
+        if user_id != ADMIN_ID:
             await message.answer("⛔ Доступ запрещён.")
             return
 
@@ -82,40 +98,58 @@ async def messages(message: Message):
         )
         return
 
+
+    # ПОЛЬЗОВАТЕЛИ
     if message.text == "👤 Пользователи":
-        if message.from_user.id != ADMIN_ID:
+
+        if user_id != ADMIN_ID:
             return
 
+        count = get_users_count()
+
         await message.answer(
-            "👤 Пользователи\n\n"
-            "Пользователей пока: 1"
+            f"👤 Пользователи\n\n"
+            f"Всего пользователей: {count}"
         )
         return
 
+
+    # БАЛАНСЫ
     if message.text == "💰 Балансы":
-        if message.from_user.id != ADMIN_ID:
+
+        if user_id != ADMIN_ID:
             return
 
         await message.answer(
             "💰 Управление балансами\n\n"
-            "Функция управления балансами готовится."
+            "Функция изменения баланса будет добавлена следующим этапом."
         )
         return
 
+
+    # НОВОСТИ
     if message.text == "📰 Новости":
-        if message.from_user.id == ADMIN_ID:
+
+        if user_id == ADMIN_ID:
+
             await message.answer(
                 "📰 Управление новостями\n\n"
-                "Добавление и редактирование новостей скоро будет доступно."
+                "Добавление новостей будет добавлено следующим этапом."
             )
+
         else:
+
             await message.answer(
                 "📰 Новости BLACK RESERVE скоро появятся."
             )
+
         return
 
+
+    # НАСТРОЙКИ
     if message.text == "⚙️ Настройки":
-        if message.from_user.id != ADMIN_ID:
+
+        if user_id != ADMIN_ID:
             return
 
         await message.answer(
@@ -124,42 +158,68 @@ async def messages(message: Message):
         )
         return
 
+
+    # ГЛАВНОЕ МЕНЮ
     if message.text == "🔙 Главное меню":
+
         await message.answer(
             "🖤 Главное меню",
             reply_markup=main_menu,
         )
         return
 
-    # ОСНОВНОЕ МЕНЮ
+
+    # БАЛАНС ПОЛЬЗОВАТЕЛЯ
     if message.text == "💰 Баланс":
-        await message.answer("💰 Ваш баланс: $0.00")
 
-    elif message.text == "💳 Пополнить":
+        balance = get_balance(user_id)
+
         await message.answer(
-            "💳 Раздел пополнения скоро будет доступен."
+            f"💰 Ваш баланс: ${balance:.2f}"
         )
+        return
 
-    elif message.text == "⭐ Отзывы":
+
+    # ПОПОЛНЕНИЕ
+    if message.text == "💳 Пополнить":
+
+        await message.answer(
+            "💳 Пополнение баланса будет подключено следующим этапом."
+        )
+        return
+
+
+    # ОТЗЫВЫ
+    if message.text == "⭐ Отзывы":
+
         await message.answer(
             "⭐ Отзывы BLACK RESERVE скоро появятся."
         )
+        return
 
-    elif message.text == "📞 Поддержка":
+
+    # ПОДДЕРЖКА
+    if message.text == "📞 Поддержка":
+
         await message.answer(
             "📞 Поддержка BLACK RESERVE."
         )
+        return
 
-    else:
-        await message.answer(
-            "🖤 BLACK RESERVE\n\n"
-            "Выберите раздел в меню.",
-            reply_markup=main_menu,
-        )
+
+    await message.answer(
+        "🖤 BLACK RESERVE\n\n"
+        "Выберите раздел в меню.",
+        reply_markup=main_menu,
+    )
 
 
 async def main():
+
+    init_db()
+
     print("BLACK RESERVE BOT STARTED")
+
     await dp.start_polling(bot)
 
 
