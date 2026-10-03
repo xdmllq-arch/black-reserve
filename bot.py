@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sqlite3
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart, Command
@@ -10,12 +11,58 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 8336765971
+DB_NAME = "black_reserve.db"
 
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+
+def init_db():
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            balance REAL DEFAULT 0
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def add_user(user_id, username, first_name):
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("""
+        INSERT OR IGNORE INTO users
+        (user_id, username, first_name, balance)
+        VALUES (?, ?, ?, 0)
+    """, (user_id, username, first_name))
+    conn.commit()
+    conn.close()
+
+
+def get_users():
+    conn = sqlite3.connect(DB_NAME)
+    users = conn.execute("""
+        SELECT user_id, username, first_name, balance
+        FROM users
+        ORDER BY rowid DESC
+    """).fetchall()
+    conn.close()
+    return users
+
+
+def get_users_count():
+    conn = sqlite3.connect(DB_NAME)
+    count = conn.execute(
+        "SELECT COUNT(*) FROM users"
+    ).fetchone()[0]
+    conn.close()
+    return count
 
 
 main_menu = ReplyKeyboardMarkup(
@@ -56,6 +103,12 @@ admin_menu = ReplyKeyboardMarkup(
 
 @dp.message(CommandStart())
 async def start(message: Message):
+    add_user(
+        message.from_user.id,
+        message.from_user.username,
+        message.from_user.first_name
+    )
+
     await message.answer(
         "🖤 BLACK RESERVE\n\n"
         "Добро пожаловать!",
@@ -85,10 +138,28 @@ async def message_handler(message: Message):
         if user_id != ADMIN_ID:
             return
 
-        await message.answer(
-            "👤 Пользователи\n\n"
-            "Система пользователей будет подключена следующим этапом."
-        )
+        users = get_users()
+
+        text = f"👤 Пользователи: {len(users)}\n\n"
+
+        if not users:
+            text += "Пользователей пока нет."
+        else:
+            for i, user in enumerate(users, 1):
+                uid, username, first_name, balance = user
+
+                name = first_name or "Без имени"
+
+                if username:
+                    name += f" (@{username})"
+
+                text += (
+                    f"{i}. {name}\n"
+                    f"🆔 {uid}\n"
+                    f"💰 ${balance:.2f}\n\n"
+                )
+
+        await message.answer(text)
         return
 
 
@@ -98,7 +169,7 @@ async def message_handler(message: Message):
 
         await message.answer(
             "💰 Балансы\n\n"
-            "Управление балансами будет подключено следующим этапом."
+            "Управление балансами подключим следующим шагом."
         )
         return
 
@@ -169,6 +240,7 @@ async def message_handler(message: Message):
 
 
 async def main():
+    init_db()
     print("BLACK RESERVE BOT STARTED")
     await dp.start_polling(bot)
 
