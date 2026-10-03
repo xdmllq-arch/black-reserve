@@ -7,6 +7,11 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
 
+
+# =========================
+# CONFIG
+# =========================
+
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -19,6 +24,10 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
+
+# =========================
+# DATABASE
+# =========================
 
 def db():
     return sqlite3.connect(DB_NAME)
@@ -38,8 +47,15 @@ def init_db():
 
     columns = {
         row[1]
-        for row in conn.execute("PRAGMA table_info(users)").fetchall()
+        for row in conn.execute(
+            "PRAGMA table_info(users)"
+        ).fetchall()
     }
+
+    if "username" not in columns:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN username TEXT"
+        )
 
     if "first_name" not in columns:
         conn.execute(
@@ -75,42 +91,50 @@ def add_user(user_id, username, first_name):
 def get_users():
     conn = db()
 
-    rows = conn.execute(
+    users = conn.execute(
         "SELECT user_id, username, first_name, balance "
-        "FROM users ORDER BY rowid DESC"
+        "FROM users "
+        "ORDER BY rowid DESC"
     ).fetchall()
 
     conn.close()
-    return rows
+
+    return users
 
 
 def get_balance(user_id):
     conn = db()
 
-    row = conn.execute(
+    result = conn.execute(
         "SELECT balance FROM users WHERE user_id = ?",
         (user_id,)
     ).fetchone()
 
     conn.close()
 
-    if row:
-        return float(row[0])
+    if result is None:
+        return 0.0
 
-    return 0.0
+    return float(result[0])
 
 
 def change_balance(user_id, amount):
     conn = db()
 
     conn.execute(
-        "UPDATE users SET balance = balance + ? WHERE user_id = ?",
+        "UPDATE users "
+        "SET balance = balance + ? "
+        "WHERE user_id = ?",
         (amount, user_id)
     )
 
     conn.commit()
     conn.close()
 
+
+# =========================
+# MAIN MENU
+# =========================
 
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -133,6 +157,10 @@ main_menu = ReplyKeyboardMarkup(
 )
 
 
+# =========================
+# BISHKEK MENU
+# =========================
+
 bishkek_menu = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -150,6 +178,30 @@ bishkek_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+
+# =========================
+# DISTRICT MENU
+# =========================
+
+district_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="🛍️ Позиции")
+        ],
+        [
+            KeyboardButton(text="🔙 Районы Бишкек")
+        ],
+        [
+            KeyboardButton(text="🏠 Главное меню")
+        ]
+    ],
+    resize_keyboard=True
+)
+
+
+# =========================
+# ADMIN MENU
+# =========================
 
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
@@ -169,6 +221,10 @@ admin_menu = ReplyKeyboardMarkup(
 )
 
 
+# =========================
+# START
+# =========================
+
 @dp.message(CommandStart())
 async def start(message: Message):
     add_user(
@@ -184,6 +240,10 @@ async def start(message: Message):
     )
 
 
+# =========================
+# ADMIN
+# =========================
+
 @dp.message(Command("admin"))
 async def admin_command(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -197,83 +257,108 @@ async def admin_command(message: Message):
     )
 
 
+# =========================
+# MESSAGE HANDLER
+# =========================
+
 @dp.message()
 async def handler(message: Message):
     uid = message.from_user.id
     text = message.text or ""
 
+    # -------------------------
+    # BISHKEK
+    # -------------------------
+
     if text == "📍 Бишкек":
         await message.answer(
-            "📍 Бишкек\n\n"
+            "📍 БИШКЕК\n\n"
             "Выберите район:",
             reply_markup=bishkek_menu
         )
         return
 
-    if text in (
+    # -------------------------
+    # DISTRICTS
+    # -------------------------
+
+    districts = {
         "Ленинский район",
         "Октябрьский район",
         "Первомайский район",
         "Свердловский район"
-    ):
+    }
+
+    if text in districts:
         await message.answer(
-            "📍 Бишкек — " + text + "\n\n"
-            "Раздел района пока настраивается.",
+            "📍 БИШКЕК\n"
+            "Район: " + text + "\n\n"
+            "Выберите действие:",
+            reply_markup=district_menu
+        )
+        return
+
+    # -------------------------
+    # POSITIONS
+    # -------------------------
+
+    if text == "🛍️ Позиции":
+        await message.answer(
+            "🛍️ ПОЗИЦИИ\n\n"
+            "Позиции этого района скоро будут добавлены."
+        )
+        return
+
+    # -------------------------
+    # BACK TO DISTRICTS
+    # -------------------------
+
+    if text == "🔙 Районы Бишкек":
+        await message.answer(
+            "📍 БИШКЕК\n\n"
+            "Выберите район:",
             reply_markup=bishkek_menu
         )
         return
+
+    # -------------------------
+    # USERS
+    # -------------------------
 
     if text == "👤 Пользователи":
         if uid != ADMIN_ID:
             return
 
         users = get_users()
-        out = "👤 Пользователи: " + str(len(users)) + "\n\n"
 
-        for i, user in enumerate(users, 1):
-            user_id, username, first_name, balance = user
-
-            name = first_name or "Без имени"
-
-            if username:
-                name += " (@" + username + ")"
-
-            out += (
-                str(i) + ". " + name + "\n"
-                "🆔 " + str(user_id) + "\n"
-                "💰 $" + f"{balance:.2f}" + "\n\n"
-            )
+        output = "👤 ПОЛЬЗОВАТЕЛИ\n\n"
+        output += "Всего: " + str(len(users)) + "\n\n"
 
         if not users:
-            out += "Пользователей пока нет."
+            output += "Пользователей пока нет."
+        else:
+            for number, user in enumerate(users, 1):
+                user_id = user[0]
+                username = user[1]
+                first_name = user[2]
+                balance = user[3]
 
-        await message.answer(out)
+                name = first_name or "Без имени"
+
+                if username:
+                    name += " (@" + username + ")"
+
+                output += (
+                    str(number) + ". " + name + "\n"
+                    "🆔 " + str(user_id) + "\n"
+                    "💰 $" + format(float(balance), ".2f") + "\n\n"
+                )
+
+        await message.answer(output)
         return
 
-        if text == "💰 Балансы":
-        if uid != ADMIN_ID:
-            return
+    # -------------------------
+    # BALANCES ADMIN
+    # -------------------------
 
-        users = get_users()
-        out = "💰 БАЛАНСЫ\n\n"
-
-        for user in users:
-            user_id, username, first_name, balance = user
-
-            name = first_name or "Без имени"
-
-            if username:
-                name += " (@" + username + ")"
-
-            out += (
-                "👤 " + name + "\n"
-                "🆔 " + str(user_id) + "\n"
-                "💵 $" + f"{balance:.2f}" + "\n\n"
-            )
-
-        if not users:
-            out += "Пользователей пока нет."
-
-        await message.answer(out)
-        return
-           
+    if text == "💰
