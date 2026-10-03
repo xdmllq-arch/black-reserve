@@ -258,6 +258,25 @@ async def message_handler(message: Message):
         return
 
 
-    if message.text == "📞 Поддержка":
+        if message.text == "📞 Поддержка":
         await message.answer(
-            "📞 Под
+            "📞 Поддержка BLACK RESERVE."
+        )
+        return
+
+
+    await message.answer(
+        "🖤 BLACK RESERVE\n\n"
+        "Выберите раздел.",
+        reply_markup=main_menu
+    )
+
+
+async def main():
+    init_db()
+    print("BLACK RESERVE BOT STARTED")
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
