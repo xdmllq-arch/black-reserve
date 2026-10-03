@@ -56,13 +56,28 @@ def get_users():
     return users
 
 
-def get_users_count():
+def get_balance(user_id):
     conn = sqlite3.connect(DB_NAME)
-    count = conn.execute(
-        "SELECT COUNT(*) FROM users"
-    ).fetchone()[0]
+    result = conn.execute(
+        "SELECT balance FROM users WHERE user_id = ?",
+        (user_id,)
+    ).fetchone()
     conn.close()
-    return count
+
+    return result[0] if result else 0
+
+
+def change_balance(user_id, amount):
+    conn = sqlite3.connect(DB_NAME)
+
+    conn.execute("""
+        UPDATE users
+        SET balance = balance + ?
+        WHERE user_id = ?
+    """, (amount, user_id))
+
+    conn.commit()
+    conn.close()
 
 
 main_menu = ReplyKeyboardMarkup(
@@ -142,22 +157,19 @@ async def message_handler(message: Message):
 
         text = f"👤 Пользователи: {len(users)}\n\n"
 
-        if not users:
-            text += "Пользователей пока нет."
-        else:
-            for i, user in enumerate(users, 1):
-                uid, username, first_name, balance = user
+        for i, user in enumerate(users, 1):
+            uid, username, first_name, balance = user
 
-                name = first_name or "Без имени"
+            name = first_name or "Без имени"
 
-                if username:
-                    name += f" (@{username})"
+            if username:
+                name += f" (@{username})"
 
-                text += (
-                    f"{i}. {name}\n"
-                    f"🆔 {uid}\n"
-                    f"💰 ${balance:.2f}\n\n"
-                )
+            text += (
+                f"{i}. {name}\n"
+                f"🆔 {uid}\n"
+                f"💰 ${balance:.2f}\n\n"
+            )
 
         await message.answer(text)
         return
@@ -167,10 +179,27 @@ async def message_handler(message: Message):
         if user_id != ADMIN_ID:
             return
 
-        await message.answer(
-            "💰 Балансы\n\n"
-            "Управление балансами подключим следующим шагом."
-        )
+        users = get_users()
+
+        text = "💰 УПРАВЛЕНИЕ БАЛАНСАМИ\n\n"
+
+        for i, user in enumerate(users, 1):
+            uid, username, first_name, balance = user
+
+            name = first_name or "Без имени"
+
+            if username:
+                name += f" (@{username})"
+
+            text += (
+                f"{i}. {name}\n"
+                f"🆔 {uid}\n"
+                f"💵 ${balance:.2f}\n\n"
+            )
+
+        text += "Для изменения баланса пока используйте ID пользователя."
+
+        await message.answer(text)
         return
 
 
@@ -207,7 +236,11 @@ async def message_handler(message: Message):
 
 
     if message.text == "💰 Баланс":
-        await message.answer("💰 Ваш баланс: $0.00")
+        balance = get_balance(user_id)
+
+        await message.answer(
+            f"💰 Ваш баланс: ${balance:.2f}"
+        )
         return
 
 
@@ -227,23 +260,4 @@ async def message_handler(message: Message):
 
     if message.text == "📞 Поддержка":
         await message.answer(
-            "📞 Поддержка BLACK RESERVE."
-        )
-        return
-
-
-    await message.answer(
-        "🖤 BLACK RESERVE\n\n"
-        "Выберите раздел.",
-        reply_markup=main_menu
-    )
-
-
-async def main():
-    init_db()
-    print("BLACK RESERVE BOT STARTED")
-    await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+            "📞 Под
