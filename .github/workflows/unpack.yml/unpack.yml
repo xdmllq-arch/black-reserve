@@ -1,0 +1,27 @@
+name: Unpack starter
+
+on:
+  workflow_dispatch:
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unzip starter
+        run: |
+          unzip -o black-reserve-starter.zip -d extracted
+          cp -r extracted/black-reserve/* .
+          rm -rf extracted
+          rm -f black-reserve-starter.zip
+
+      - name: Commit project files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Extract BLACK RESERVE starter" || echo "Nothing to commit"
+          git push
