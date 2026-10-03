@@ -23,6 +23,20 @@ def add_user(user_id, username):
 
     conn.execute(
         """
+        def change_balance(user_id, amount):
+    conn = sqlite3.connect(DB_NAME)
+
+    conn.execute(
+        """
+        UPDATE users
+        SET balance = balance + ?
+        WHERE user_id = ?
+        """,
+        (amount, user_id)
+    )
+
+    conn.commit()
+    conn.close()
         INSERT OR IGNORE INTO users (user_id, username, balance)
         VALUES (?, ?, 0)
         """,
