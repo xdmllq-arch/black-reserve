@@ -250,7 +250,7 @@ async def handler(message: Message):
         await message.answer(out)
         return
 
-    if text == "💰 Балансы":
+        if text == "💰 Балансы":
         if uid != ADMIN_ID:
             return
 
@@ -258,4 +258,22 @@ async def handler(message: Message):
         out = "💰 БАЛАНСЫ\n\n"
 
         for user in users:
+            user_id, username, first_name, balance = user
+
+            name = first_name or "Без имени"
+
+            if username:
+                name += " (@" + username + ")"
+
+            out += (
+                "👤 " + name + "\n"
+                "🆔 " + str(user_id) + "\n"
+                "💵 $" + f"{balance:.2f}" + "\n\n"
+            )
+
+        if not users:
+            out += "Пользователей пока нет."
+
+        await message.answer(out)
+        return
            
