@@ -7,14 +7,17 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 8336765971
 DB_NAME = "black_reserve.db"
 
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set")
+
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -32,8 +35,7 @@ def init_db():
         "user_id INTEGER PRIMARY KEY,"
         "username TEXT,"
         "first_name TEXT,"
-        "balance REAL DEFAULT 0"
-        ")"
+        "balance REAL DEFAULT 0)"
     )
 
     columns = {
@@ -42,13 +44,19 @@ def init_db():
     }
 
     if "username" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN username TEXT")
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN username TEXT"
+        )
 
     if "first_name" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN first_name TEXT"
+        )
 
     if "balance" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0")
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN balance REAL DEFAULT 0"
+        )
 
     conn.commit()
     conn.close()
@@ -104,7 +112,8 @@ def change_balance(user_id, amount):
     conn = db()
 
     conn.execute(
-        "UPDATE users SET balance = balance + ? WHERE user_id = ?",
+        "UPDATE users SET balance = balance + ? "
+        "WHERE user_id = ?",
         (amount, user_id)
     )
 
@@ -114,7 +123,9 @@ def change_balance(user_id, amount):
 
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📍 Бишкек")],
+        [
+            KeyboardButton(text="📍 Бишкек")
+        ],
         [
             KeyboardButton(text="💰 Баланс"),
             KeyboardButton(text="💳 Пополнить")
@@ -123,7 +134,9 @@ main_menu = ReplyKeyboardMarkup(
             KeyboardButton(text="📰 Новости"),
             KeyboardButton(text="⭐ Отзывы")
         ],
-        [KeyboardButton(text="📞 Поддержка")]
+        [
+            KeyboardButton(text="📞 Поддержка")
+        ]
     ],
     resize_keyboard=True
 )
@@ -137,4 +150,254 @@ bishkek_menu = ReplyKeyboardMarkup(
         ],
         [
             KeyboardButton(text="Первомайский район"),
-            KeyboardButton(text="Свердлов
+            KeyboardButton(text="Свердловский район")
+        ],
+        [
+            KeyboardButton(text="🔙 Главное меню")
+        ]
+    ],
+    resize_keyboard=True
+)
+
+
+district_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="🛍️ Позиции")
+        ],
+        [
+            KeyboardButton(text="🔙 Районы Бишкек")
+        ],
+        [
+            KeyboardButton(text="🏠 Главное меню")
+        ]
+    ],
+    resize_keyboard=True
+)
+
+
+admin_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="👤 Пользователи"),
+            KeyboardButton(text="💰 Балансы")
+        ],
+        [
+            KeyboardButton(text="📰 Новости"),
+            KeyboardButton(text="⚙️ Настройки")
+        ],
+        [
+            KeyboardButton(text="🔙 Главное меню")
+        ]
+    ],
+    resize_keyboard=True
+)
+
+
+@dp.message(CommandStart())
+async def start(message: Message):
+    add_user(
+        message.from_user.id,
+        message.from_user.username,
+        message.from_user.first_name
+    )
+
+    await message.answer(
+        "🖤 BLACK RESERVE\n\n"
+        "Добро пожаловать!",
+        reply_markup=main_menu
+    )
+
+
+@dp.message(Command("admin"))
+async def admin_command(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("⛔ Доступ запрещён.")
+        return
+
+    await message.answer(
+        "⚙️ BLACK RESERVE — ADMIN\n\n"
+        "Панель управления:",
+        reply_markup=admin_menu
+    )
+
+
+@dp.message()
+async def handler(message: Message):
+    uid = message.from_user.id
+    text = message.text or ""
+
+    if text == "📍 Бишкек":
+        await message.answer(
+            "📍 БИШКЕК\n\n"
+            "Выберите район:",
+            reply_markup=bishkek_menu
+        )
+        return
+
+    if text in {
+        "Ленинский район",
+        "Октябрьский район",
+        "Первомайский район",
+        "Свердловский район"
+    }:
+        await message.answer(
+            "📍 БИШКЕК\n"
+            "Район: " + text + "\n\n"
+            "Выберите действие:",
+            reply_markup=district_menu
+        )
+        return
+
+    if text == "🛍️ Позиции":
+        await message.answer(
+            "🛍️ ПОЗИЦИИ\n\n"
+            "Позиции этого района скоро будут добавлены."
+        )
+        return
+
+    if text == "🔙 Районы Бишкек":
+        await message.answer(
+            "📍 БИШКЕК\n\n"
+            "Выберите район:",
+            reply_markup=bishkek_menu
+        )
+        return
+
+    if text == "👤 Пользователи":
+        if uid != ADMIN_ID:
+            return
+
+        users = get_users()
+
+        output = (
+            "👤 ПОЛЬЗОВАТЕЛИ\n\n"
+            "Всего: " + str(len(users)) + "\n\n"
+        )
+
+        if not users:
+            output += "Пользователей пока нет."
+        else:
+            for number, user in enumerate(users, 1):
+                user_id = user[0]
+                username = user[1]
+                first_name = user[2]
+                balance = user[3]
+
+                name = first_name or "Без имени"
+
+                if username:
+                    name += " (@" + username + ")"
+
+                output += (
+                    str(number) + ". " + name + "\n"
+                    "🆔 " + str(user_id) + "\n"
+                    "💰 $" + format(float(balance), ".2f") + "\n\n"
+                )
+
+        await message.answer(output)
+        return
+
+    if text == "💰 Балансы":
+        if uid != ADMIN_ID:
+            return
+
+        users = get_users()
+        output = "💰 БАЛАНСЫ\n\n"
+
+        if not users:
+            output += "Пользователей пока нет."
+        else:
+            for user in users:
+                user_id = user[0]
+                username = user[1]
+                first_name = user[2]
+                balance = user[3]
+
+                name = first_name or "Без имени"
+
+                if username:
+                    name += " (@" + username + ")"
+
+                output += (
+                    "👤 " + name + "\n"
+                    "🆔 " + str(user_id) + "\n"
+                    "💵 $" + format(float(balance), ".2f") + "\n\n"
+                )
+
+        await message.answer(output)
+        return
+
+    if text == "💰 Баланс":
+        balance = get_balance(uid)
+
+        await message.answer(
+            "💰 Ваш баланс: $" + format(balance, ".2f")
+        )
+        return
+
+    if text == "💳 Пополнить":
+        await message.answer(
+            "💳 ПОПОЛНЕНИЕ\n\n"
+            "Система пополнения скоро будет доступна."
+        )
+        return
+
+    if text == "📰 Новости":
+        await message.answer(
+            "📰 НОВОСТИ BLACK RESERVE\n\n"
+            "Новости скоро появятся."
+        )
+        return
+
+    if text == "⭐ Отзывы":
+        await message.answer(
+            "⭐ ОТЗЫВЫ BLACK RESERVE\n\n"
+            "Отзывы скоро появятся."
+        )
+        return
+
+    if text == "📞 Поддержка":
+        await message.answer(
+            "📞 ПОДДЕРЖКА BLACK RESERVE\n\n"
+            "Раздел поддержки скоро будет настроен."
+        )
+        return
+
+    if text == "⚙️ Настройки":
+        if uid != ADMIN_ID:
+            return
+
+        await message.answer(
+            "⚙️ НАСТРОЙКИ\n\n"
+            "BLACK RESERVE работает."
+        )
+        return
+
+    if text in {
+        "🔙 Главное меню",
+        "🏠 Главное меню"
+    }:
+        await message.answer(
+            "🖤 Главное меню",
+            reply_markup=main_menu
+        )
+        return
+
+    await message.answer(
+        "🖤 BLACK RESERVE\n\n"
+        "Выберите раздел:",
+        reply_markup=main_menu
+    )
+
+
+async def main():
+    init_db()
+
+    print("BLACK RESERVE BOT STARTED")
+
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
